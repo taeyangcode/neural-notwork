@@ -16,19 +16,15 @@ impl Matrix {
         }
     }
 
-    pub fn random(rows: usize, columns: usize, range: (f64, f64)) -> Self {
-        assert!(
-            range.0 <= range.1,
-            "minimum cannot be larger than maximum range"
-        );
-
-        let mut random = rand::thread_rng();
-
+    pub fn random<F>(rows: usize, columns: usize, entry_generator_fn: F) -> Self
+    where
+        F: Fn() -> f64,
+    {
         Self {
             rows,
             columns,
-            entries: (0..rows * columns)
-                .map(|_| random.gen_range(range.0..=range.1))
+            entries: std::iter::repeat_with(entry_generator_fn)
+                .take(rows * columns)
                 .collect(),
         }
     }
@@ -43,7 +39,8 @@ impl Matrix {
         assert_eq!(
             self.columns,
             other.rows,
-        "number of columns in the first matrix must equal the number of rows in the second matrix");
+            "number of columns in the first matrix must equal the number of rows in the second matrix"
+        );
 
         let mut product = vec![0_f64; self.rows * other.columns];
 
@@ -198,37 +195,36 @@ impl core::ops::Mul for Matrix {
     }
 }
 
-macro_rules! impl_mul_for_matrix {
-    ($($t:ty),*) => {
-        $(
-            impl core::ops::Mul<$t> for Matrix {
-                type Output = Matrix;
+impl<N: num_traits::Num> core::ops::Mul<N> for Matrix
+where
+    N: Copy + Into<f64>,
+{
+    type Output = Matrix;
 
-                fn mul(self, rhs: $t) -> Self::Output {
-                    Matrix {
-                        rows: self.rows,
-                        columns: self.columns,
-                        entries: self.entries
-                            .to_owned()
-                            .into_iter()
-                            .map(|entry| entry * rhs as f64)
-                            .collect(),
-                    }
-                }
-            }
-
-            impl core::ops::MulAssign<$t> for Matrix {
-                fn mul_assign(&mut self, rhs: $t) {
-                    self.entries
-                        .iter_mut()
-                        .for_each(|entry| *entry *= rhs as f64);
-                }
-            }
-        )*
-    };
+    fn mul(self, rhs: N) -> Self::Output {
+        Matrix {
+            rows: self.rows,
+            columns: self.columns,
+            entries: self
+                .entries
+                .to_owned()
+                .into_iter()
+                .map(|entry| entry * rhs.into())
+                .collect(),
+        }
+    }
 }
 
-impl_mul_for_matrix!(i8, i16, i32, u8, u16, u32, f32, f64);
+impl<N: num_traits::Num> core::ops::MulAssign<N> for Matrix
+where
+    N: Copy + Into<f64>,
+{
+    fn mul_assign(&mut self, rhs: N) {
+        self.entries
+            .iter_mut()
+            .for_each(|entry| *entry *= rhs.into());
+    }
+}
 
 #[cfg(test)]
 mod product_tests {
