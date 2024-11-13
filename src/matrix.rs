@@ -1,6 +1,6 @@
-use rand::Rng;
+#![allow(dead_code)]
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Matrix {
     pub rows: usize,
     pub columns: usize,
