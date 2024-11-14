@@ -91,6 +91,17 @@ impl Matrix {
 
         transpose
     }
+
+    pub fn apply<F>(&self, apply_fn: F) -> Matrix
+    where
+        F: Fn(f64) -> f64,
+    {
+        Matrix {
+            rows: self.rows,
+            columns: self.columns,
+            entries: self.entries.clone().into_iter().map(apply_fn).collect(),
+        }
+    }
 }
 
 impl core::ops::Index<(usize, usize)> for Matrix {
@@ -131,6 +142,28 @@ impl core::ops::Add for Matrix {
                 .entries
                 .iter()
                 .zip(rhs.entries)
+                .map(|(left, right)| left + right)
+                .collect(),
+        }
+    }
+}
+
+impl core::ops::Add<&Matrix> for Matrix {
+    type Output = Self;
+
+    fn add(self, rhs: &Matrix) -> Self::Output {
+        assert!(
+            self.rows.eq(&rhs.rows) && self.columns.eq(&rhs.columns),
+            "matrix dimensions do not match"
+        );
+
+        Matrix {
+            rows: self.rows,
+            columns: self.columns,
+            entries: self
+                .entries
+                .iter()
+                .zip(&rhs.entries)
                 .map(|(left, right)| left + right)
                 .collect(),
         }
@@ -187,11 +220,19 @@ impl core::ops::SubAssign for Matrix {
     }
 }
 
-impl core::ops::Mul for Matrix {
+impl core::ops::Mul<Matrix> for Matrix {
     type Output = Matrix;
 
-    fn mul(self, rhs: Self) -> Self::Output {
+    fn mul(self, rhs: Matrix) -> Self::Output {
         self.product(&rhs)
+    }
+}
+
+impl core::ops::Mul<&Matrix> for &Matrix {
+    type Output = Matrix;
+
+    fn mul(self, rhs: &Matrix) -> Self::Output {
+        self.product(rhs)
     }
 }
 

@@ -135,44 +135,49 @@ where
 
         match self.hidden.as_ref() {
             Some(hidden) if !hidden.is_empty() => {
-                let hidden_first = hidden.first().unwrap();
                 let hidden_last = hidden.last().unwrap();
 
                 let input_weight =
-                    std::iter::once(Matrix::random(input.columns, hidden_first.rows, weight_fn));
+                    std::iter::once(Matrix::random(input.columns, hidden[0].columns, weight_fn));
                 let hidden_weights = hidden
                     .windows(2)
-                    .map(|window| Matrix::random(window[0].columns, window[1].rows, weight_fn));
-                let output_weight =
-                    std::iter::once(Matrix::random(hidden_last.columns, output.rows, weight_fn));
+                    .map(|window| Matrix::random(window[0].columns, window[1].columns, weight_fn));
+                let output_weight = std::iter::once(Matrix::random(
+                    hidden_last.columns,
+                    output.columns,
+                    weight_fn,
+                ));
 
                 input_weight
                     .chain(hidden_weights)
                     .chain(output_weight)
                     .collect()
             }
-            _ => vec![Matrix::random(output.rows, input.rows, weight_fn)],
+            _ => vec![Matrix::random(input.columns, output.columns, weight_fn)],
         }
     }
 
     fn random_biases(&mut self) -> Vec<Matrix> {
-        let input = self.input.as_ref().unwrap();
         let output = self.output.as_ref().unwrap();
         let bias_fn = self.bias_fn.as_ref().unwrap();
 
         match self.hidden.as_ref() {
             Some(hidden) if !hidden.is_empty() => {
-                let hidden_last = hidden.last().unwrap();
+                let hidden_biases = hidden.into_iter().map(|hidden| {
+                    Matrix::random(hidden.rows, 1, bias_fn)
+                        * Matrix::random(1, hidden.columns, || 1.0_f64)
+                });
+                let output_bias = std::iter::once(
+                    Matrix::random(output.rows, 1, bias_fn)
+                        * Matrix::random(1, output.columns, || 1.0_f64),
+                );
 
-                let input_bias = std::iter::once(Matrix::random(input.columns, 1, bias_fn));
-                let hidden_biases = hidden
-                    .windows(2)
-                    .map(|window| Matrix::random(window[0].columns, 1, bias_fn));
-                let output_bias = std::iter::once(Matrix::random(hidden_last.columns, 1, bias_fn));
-
-                input_bias.chain(hidden_biases).chain(output_bias).collect()
+                hidden_biases.chain(output_bias).collect()
             }
-            _ => vec![Matrix::random(output.rows, 1, bias_fn)],
+            _ => vec![
+                Matrix::random(output.rows, 1, bias_fn)
+                    * Matrix::random(1, output.columns, || 1.0_f64),
+            ],
         }
     }
 }
@@ -196,26 +201,29 @@ where
     ActivationF: Fn(f64) -> f64,
 {
     pub fn propogate(&mut self) {
-        dbg!(self.input.clone() * self.weights[0].clone());
+        let forward_input =
+            (&self.input * &self.weights[0] + &self.biases[0]).apply(&self.activation_fn);
+        let forward_hidden = self
+            .hidden
+            .iter()
+            .zip(self.weights.iter().skip(1))
+            .zip(self.biases.iter().skip(1))
+            .map(|((hidden_layer, weights), biases)| {});
 
-        // let forward_input =
-        //     std::iter::once(self.input.clone() * self.weights[0].clone() + self.biases[0].clone());
+        dbg!(forward_input);
         // let forward_hidden = self
         //     .hidden
         //     .clone()
-        //     .windows(2)
-        //     .zip(self.weights.clone().windows(2).skip(1))
-        //     .zip(self.biases.clone().windows(2).skip(1))
-        //     .map(|a| {
-        //         dbg!(a);
-        //     });
+        //     .into_iter()
+        //     .zip(self.weights.clone().into_iter().skip(1))
+        //     .map(|a| a)
+        //     .collect::<Vec<_>>();
+        // dbg!(forward_hidden);
     }
 }
 
 #[cfg(test)]
 mod test {
-    use num_traits::pow;
-
     use super::NeuralNetworkBuilder;
     use crate::matrix::Matrix;
 
@@ -226,13 +234,11 @@ mod test {
 
         let input = Matrix {
             rows: 5,
-            columns: 2,
-            entries: vec![
-                1_f64, 1_f64, 1_f64, 2_f64, 2_f64, 2_f64, 2_f64, 3_f64, 3_f64, 3_f64,
-            ],
+            columns: 1,
+            entries: vec![1_f64, 1_f64, 1_f64, 1_f64, 1_f64],
         };
 
-        let hidden = vec![Matrix::random(5, 1, || 1.0_f64)];
+        let hidden = vec![Matrix::random(5, 1, || rand::random::<f64>())];
 
         let output = Matrix {
             rows: 5,
