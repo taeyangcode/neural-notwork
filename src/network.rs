@@ -2,11 +2,12 @@
 
 use crate::matrix::Matrix;
 
-pub struct NeuralNetworkBuilder<WeightF, BiasF, ActivationF>
+pub struct NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF>
 where
     WeightF: Fn() -> f64,
     BiasF: Fn() -> f64,
     ActivationF: Fn(f64) -> f64,
+    LossF: Fn(f64, f64) -> f64,
 {
     input: Option<Matrix>,
     hidden: Option<Vec<Matrix>>,
@@ -15,18 +16,20 @@ where
     biases: Option<Vec<Matrix>>,
     learning_rate: Option<f64>,
     activation_fn: Option<ActivationF>,
+    loss_fn: Option<LossF>,
 
     weight_fn: Option<WeightF>,
     bias_fn: Option<BiasF>,
 }
 
-impl<WeightF, BiasF, ActivationF> NeuralNetworkBuilder<WeightF, BiasF, ActivationF>
+impl<WeightF, BiasF, ActivationF, LossF> NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF>
 where
     WeightF: Fn() -> f64,
     BiasF: Fn() -> f64,
     ActivationF: Fn(f64) -> f64,
+    LossF: Fn(f64, f64) -> f64,
 {
-    pub fn default() -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF> {
+    pub fn default() -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF> {
         Self {
             input: None,
             hidden: None,
@@ -35,6 +38,7 @@ where
             biases: None,
             learning_rate: None,
             activation_fn: None,
+            loss_fn: None,
 
             weight_fn: None,
             bias_fn: None,
@@ -44,7 +48,7 @@ where
     pub fn with_input(
         mut self,
         input: Matrix,
-    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF> {
+    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF> {
         self.input = Some(input);
         self
     }
@@ -52,7 +56,7 @@ where
     pub fn with_hidden(
         mut self,
         hidden: Vec<Matrix>,
-    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF> {
+    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF> {
         self.hidden = Some(hidden);
         self
     }
@@ -60,7 +64,7 @@ where
     pub fn with_output(
         mut self,
         output: Matrix,
-    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF> {
+    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF> {
         self.output = Some(output);
         self
     }
@@ -68,7 +72,7 @@ where
     pub fn with_weights(
         mut self,
         weights: Vec<Matrix>,
-    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF> {
+    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF> {
         self.weights = Some(weights);
         self
     }
@@ -76,7 +80,7 @@ where
     pub fn with_random_weights(
         mut self,
         weight_fn: WeightF,
-    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF> {
+    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF> {
         self.weight_fn = Some(weight_fn);
         self
     }
@@ -84,7 +88,7 @@ where
     pub fn with_biases(
         mut self,
         biases: Vec<Matrix>,
-    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF> {
+    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF> {
         self.biases = Some(biases);
         self
     }
@@ -92,7 +96,7 @@ where
     pub fn with_random_biases(
         mut self,
         bias_fn: BiasF,
-    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF> {
+    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF> {
         self.bias_fn = Some(bias_fn);
         self
     }
@@ -100,7 +104,7 @@ where
     pub fn with_learning_rate(
         mut self,
         learning_rate: f64,
-    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF> {
+    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF> {
         self.learning_rate = Some(learning_rate);
         self
     }
@@ -108,12 +112,20 @@ where
     pub fn with_activation_fn(
         mut self,
         activation_fn: ActivationF,
-    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF> {
+    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF> {
         self.activation_fn = Some(activation_fn);
         self
     }
 
-    pub fn build(mut self) -> NeuralNetwork<ActivationF> {
+    pub fn with_loss_fn(
+        mut self,
+        loss_fn: LossF,
+    ) -> NeuralNetworkBuilder<WeightF, BiasF, ActivationF, LossF> {
+        self.loss_fn = Some(loss_fn);
+        self
+    }
+
+    pub fn build(mut self) -> NeuralNetwork<ActivationF, LossF> {
         let random_weights = self.random_weights();
         let random_biases = self.random_biases();
 
@@ -125,6 +137,7 @@ where
             biases: self.biases.unwrap_or(random_biases),
             learning_rate: self.learning_rate.unwrap(),
             activation_fn: self.activation_fn.unwrap(),
+            loss_fn: self.loss_fn.unwrap(),
         }
     }
 
@@ -183,9 +196,10 @@ where
 }
 
 #[derive(Debug)]
-pub struct NeuralNetwork<ActivationF>
+pub struct NeuralNetwork<ActivationF, LossF>
 where
     ActivationF: Fn(f64) -> f64,
+    LossF: Fn(f64, f64) -> f64,
 {
     input: Matrix,
     hidden: Vec<Matrix>,
@@ -194,31 +208,24 @@ where
     biases: Vec<Matrix>,
     learning_rate: f64,
     activation_fn: ActivationF,
+    loss_fn: LossF,
 }
 
-impl<ActivationF> NeuralNetwork<ActivationF>
+impl<ActivationF, LossF> NeuralNetwork<ActivationF, LossF>
 where
     ActivationF: Fn(f64) -> f64,
+    LossF: Fn(f64, f64) -> f64,
 {
     pub fn propogate(&mut self) {
-        let forward_input =
-            (&self.input * &self.weights[0] + &self.biases[0]).apply(&self.activation_fn);
-        let forward_hidden = self
-            .hidden
-            .iter()
-            .zip(self.weights.iter().skip(1))
-            .zip(self.biases.iter().skip(1))
-            .map(|((hidden_layer, weights), biases)| {});
+        let layers = std::iter::once(&self.input)
+            .chain(&self.hidden)
+            .chain(std::iter::once(&self.output));
 
-        dbg!(forward_input);
-        // let forward_hidden = self
-        //     .hidden
-        //     .clone()
-        //     .into_iter()
-        //     .zip(self.weights.clone().into_iter().skip(1))
-        //     .map(|a| a)
-        //     .collect::<Vec<_>>();
-        // dbg!(forward_hidden);
+        let adjusted_layers = layers.zip(self.weights.iter()).zip(self.biases.iter()).map(
+            |((layer, weights), biases)| (layer * weights + biases).apply(&self.activation_fn),
+        );
+
+        dbg!(adjusted_layers.collect::<Vec<_>>());
     }
 }
 
@@ -258,6 +265,7 @@ mod test {
             .with_random_biases(bias_fn)
             .with_learning_rate(learning_rate)
             .with_activation_fn(sigmoid)
+            .with_loss_fn(|a, b| 1.0_f64)
             .build();
 
         network.propogate();
